@@ -3,72 +3,58 @@
 #
 #
 
-SERIALNAME=serial
-PARALELNAME=paralel
+PROJECTNAME=ep3
 CC=gcc
 
-CFLAGS=-fopenmp -std=c99 -D_XOPEN_SOURCE=600 -c -Wall -Wextra -Wpedantic $(DEFS) -Iinclude/
+LFLAGS=
+CFLAGS=-fopenmp -std=c99 -c -Wall -Wextra -Wpedantic -Iinclude/
 LIBS=-lm -lpthread -fopenmp
 DBGFLAGS=-ggdb -fno-inline -fno-omit-frame-pointer
 BINDIR=bin
 OBJDIR=obj
-SOBJFILES=main.o
-POBJFILES=main.o
-SOBJECTS=$(addprefix $(OBJDIR)/, $(SOBJFILES))
-POBJECTS=$(addprefix $(OBJDIR)/, $(POBJFILES))
+OBJFILES=main.o
+OBJECTS=$(addprefix $(OBJDIR)/, $(OBJFILES))
 SOURCEDIR=src
-ARGS=25 23 time 2
-ARGS=25 23 all 2
+ARGS=25 23 sum 2
+ARGS1=25 23 all 2
 
 $(OBJDIR)/%.o: $(SOURCEDIR)/%.c
 	@echo 
 	@echo Compilando $<...
-	$(CC) $(DBGFLAGS) $(CFLAGS) $< -o $@
+	mpicc $(DBGFLAGS) $(CFLAGS) $< -o $@
 
-$(PARALELNAME): $(POBJECTS) 
+$(PROJECTNAME): $(OBJECTS) 
 	@echo 
 	@echo Gerando executavel...
-	$(CC) $(PRLFLAGS) $(LDFLAGS) -o $(BINDIR)/$@ $^ $(LIBS)
-	
-$(SERIALNAME): $(SOBJECTS) 
-	@echo 
-	@echo Gerando executavel...
-	$(CC) -o $(BINDIR)/$@ $^ $(LIBS)
+	mpicc $(LFLAGS) -o $(BINDIR)/$@ $^ $(LIBS)
 
-.PHONY: all build clean debug memcheck run serial paralel
+.PHONY: all build clean debug memcheck run
 
 all:
-	$(SERIALNAME)
+	$(PROJECTNAME)
 
 build:
 	@echo 
 	@echo Gerando arquivo compactado...
-	tar zcvf ../$(MATRICULA).tar.gz doc/documentacao.pdf src/* include/* --exclude-vcs
+	clean
+	tar zcvf ../$(MATRICULA).tar.gz doc/documentacao.pdf $(BINDIR)/* $(OBJDIR)/* include/* $(SOURCEDIR)/* --exclude-vcs
 
 clean:
 	@echo 
 	@echo Excluindo executavel...
-	rm -f $(BINDIR)/$(PARALELNAME)
-	rm -f $(BINDIR)/$(SERIALNAME)
+	rm -f $(BINDIR)/$(PROJECTNAME)
 	@echo Excluindo objetos...
-	rm -f $(POBJECTS)
-	rm -f $(SOBJECTS)
+	rm -f $(OBJECTS)
 	
 debug:
-	gdb --args ./$(BINDIR)/$(PARALELNAME) $(ARGS)
+	gdb --args ./$(BINDIR)/$(PROJECTNAME) $(ARGS)
 
 memcheck:
 	valgrind -v --leak-check=yes --track-origins=yes $(BINDIR)/$(PROJECTNAME) $(ARGS)
 
-run-paralel:
-	./$(BINDIR)/$(PARALELNAME) $(ARGS)
+run:
+	./$(BINDIR)/$(PROJECTNAME) $(ARGS)
 
-run-serial:
-	./$(BINDIR)/$(SERIALNAME) $(ARGS)
-
-show-paralel:
-	./$(BINDIR)/$(PARALELNAME) $(ARGS1)
-
-show-serial:
-	./$(BINDIR)/$(SERIALNAME) $(ARGS1)
+show:
+	./$(BINDIR)/$(PROJECTNAME) $(ARGS1)
 

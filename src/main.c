@@ -1,3 +1,4 @@
+#include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -12,13 +13,8 @@ void receberEntrada(char* argv[], long* n, long* i, int* saidacompleta, long* t)
 }
 
 int main(int argc, char *argv[]) {   
-    if (argc > X) {
-        receberEntrada(argv, &tamanho, &iesimo, &saida, &numthreads);
-        processar(tamanho, iesimo, saida, numthreads);
-    }
-    else {
-        printf("Erro ao alocar vetor de dados.\n");
-        exit(EXIT_FAILURE);
-    }
+    MPI_Init(&argc,&argv);
+    printf("teste\n");	
+    MPI_Finalize();
     exit(EXIT_SUCCESS);
 }
