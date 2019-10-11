@@ -53,7 +53,7 @@ memcheck:
 	valgrind -v --leak-check=yes --track-origins=yes $(BINDIR)/$(PROJECTNAME) $(ARGS)
 
 run:
-	./$(BINDIR)/$(PROJECTNAME) $(ARGS)
+	mpiexec -n 4 ./$(BINDIR)/$(PROJECTNAME) $(ARGS)
 
 show:
 	./$(BINDIR)/$(PROJECTNAME) $(ARGS1)

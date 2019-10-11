@@ -12,9 +12,15 @@ void receberEntrada(char* argv[], long* n, long* i, int* saidacompleta, long* t)
     *t = atol(argv[4]);
 }
 
-int main(int argc, char *argv[]) {   
+int main(int argc, char *argv[]) {
+    int meuid;
+    int totalproc;
+       
     MPI_Init(&argc,&argv);
-    printf("teste\n");	
+    MPI_Comm_rank(MPI_COMM_WORLD, &meuid);
+    MPI_Comm_size(MPI_COMM_WORLD, &totalproc);
+    
+    printf("teste do proc n. %d de %d.\n", meuid, totalproc);	
     MPI_Finalize();
     exit(EXIT_SUCCESS);
 }
