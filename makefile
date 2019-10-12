@@ -15,8 +15,6 @@ OBJDIR=obj
 OBJFILES=main.o
 OBJECTS=$(addprefix $(OBJDIR)/, $(OBJFILES))
 SOURCEDIR=src
-ARGS=25 23 sum 2
-ARGS1=25 23 all 2
 
 $(OBJDIR)/%.o: $(SOURCEDIR)/%.c
 	@echo 
@@ -47,14 +45,14 @@ clean:
 	rm -f $(OBJECTS)
 	
 debug:
-	gdb --args ./$(BINDIR)/$(PROJECTNAME) $(ARGS)
+	mpiexec -n 1 gdb --args ./$(BINDIR)/$(PROJECTNAME) : -n X-1 ./$(BINDIR)/$(PROJECTNAME)
 
 memcheck:
 	valgrind -v --leak-check=yes --track-origins=yes $(BINDIR)/$(PROJECTNAME) $(ARGS)
 
 run:
-	mpiexec -n 4 ./$(BINDIR)/$(PROJECTNAME) $(ARGS)
+	mpiexec -n 4 ./$(BINDIR)/$(PROJECTNAME)
 
 show:
-	./$(BINDIR)/$(PROJECTNAME) $(ARGS1)
+	./$(BINDIR)/$(PROJECTNAME)
 
