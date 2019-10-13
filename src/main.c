@@ -1,3 +1,4 @@
+#include <math.h>
 #include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,9 +9,16 @@ void receberEntrada(char* tipoexec, unsigned long* n, float* V[]) {
     
     scanf("%s", tipoexec);
     scanf("%lu", n);
-    *V = (float*)malloc(*n * sizeof(float));
+    if (*n % 2)
+        *V = (float*)malloc(*n+1 * sizeof(float));
+    else
+        *V = (float*)malloc(*n * sizeof(float));
     for (i = 0; i < *n; i++)
        scanf("%f", *V + i);
+    if (*n % 2) {
+        (*n)++;
+        (*V)[i] = 0.0;
+    }
 }
 
 int main(int argc, char* argv[]) {
@@ -20,8 +28,7 @@ int main(int argc, char* argv[]) {
     int totalproc;
     char tipo[5];
     unsigned long tamanho;
-    float* vetor;
-    
+    float* vetor;    
 
     MPI_Init(&argc,&argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &meuid);
@@ -32,8 +39,6 @@ int main(int argc, char* argv[]) {
     float ops[2];
     if (meuid == 0) {
         receberEntrada(tipo, &tamanho, &vetor);
-        printf("\n");
-        fflush(stdout);
         j = 2;
         for (id = 1; id < totalproc; id++) {
             MPI_Send(vetor + j, 2 * sizeof(float), MPI_FLOAT, id, 0, MPI_COMM_WORLD);
@@ -44,44 +49,67 @@ int main(int argc, char* argv[]) {
     } else {
         //Cada processo recebe sua entrada
         MPI_Recv(ops, 2 * sizeof(float), MPI_FLOAT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-    }
-    //printf("processo n. %d recebeu %f e %f.\n", meuid, ops[0], ops[1]);
-    //fflush(stdout); 
+    } 
     
-    //Cada processo troca um operando com seu vizinho
-    //a esquerda
-    int orig;
-    int dest;
+    //Cada processo par troca um operando 
+    //com seu vizinho a direita
+    int vizinho;
     if (meuid % 2)
-        dest = meuid - 1;
+        vizinho = meuid - 1;
     else
-        dest = meuid + 1;
-    orig = dest;
+        vizinho = meuid + 1;
+    if ((totalproc % 2) && (meuid < totalproc-1)) {
+        MPI_Send(ops+1, sizeof(float), MPI_FLOAT, vizinho, 0, MPI_COMM_WORLD);
+        MPI_Recv(ops+1, sizeof(float), MPI_FLOAT, vizinho, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    }
     
-    //se o número de processos é impar,
-    //o processo n-1 manda para 0, 0 para 1 e
-    //1 envia para n-1
-    if (totalproc % 2) {
-        if (meuid == 0) {
-            orig = totalproc - 1;
-            dest = 1;
+    //printf("processo n. %d recebeu %f e %f.\n", meuid, ops[0], ops[1]);
+    //fflush(stdout);
+    
+    //Realiza primeira operação de soma
+    ops[0] += ops[1];
+    
+    //Primeira etapa da redução
+    //Reduz a arvore para ter o número de
+    //elementos igual a uma potência de 2
+    int potenciadois;
+    if (totalproc > 1) {
+        potenciadois = 2 << ((int)log2(totalproc)-1);
+        if (meuid >= potenciadois) {
+            MPI_Send(ops, sizeof(float), MPI_FLOAT, meuid-potenciadois, 0, MPI_COMM_WORLD);
+            MPI_Finalize();
+            exit(EXIT_SUCCESS);
         }
-        if (meuid == 1) {
-            dest =  totalproc - 1;
-            orig = 0;
+        else if (meuid < totalproc-potenciadois) {
+            MPI_Recv(ops+1, sizeof(float), MPI_FLOAT, meuid+potenciadois, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            ops[0] += ops[1];
         }
-        else if (meuid == totalproc - 1) {
-            dest = 0;
-            orig = 1;
+        totalproc = potenciadois;
+            
+        //Segunda etada da reducação
+        //Reduz a arvore até sobrar um único
+        //elemento
+        while (1) {
+            if (totalproc == 1)
+                break;
+            //Distribui os resultados para outros processos
+            //0 a n/2-1 recebe, n/2 a n-1 envia
+            if (meuid < totalproc / 2)
+                MPI_Recv(ops+1, sizeof(float), MPI_FLOAT, meuid + totalproc/2, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            else {
+                MPI_Send(ops, sizeof(float), MPI_FLOAT, meuid - totalproc/2, 0, MPI_COMM_WORLD);
+                break;
+            }
+            ops[0] += ops[1];        
+            totalproc /= 2;
         }
     }
-    MPI_Send(ops+1, sizeof(float), MPI_FLOAT, dest, 0, MPI_COMM_WORLD);
-    MPI_Recv(ops+1, sizeof(float), MPI_FLOAT, orig, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     
-    printf("processo n. %d recebeu %f e %f.\n", meuid, ops[0], ops[1]);
-    fflush(stdout);
-    
-    //Começa a realizar as operações de soma
+    //Mostra o resultado e limpa a memória
+    if (meuid == 0) {
+        printf("%f\n", ops[0]);
+        //free(vetor);
+    }
 
     MPI_Finalize();
     exit(EXIT_SUCCESS);

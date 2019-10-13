@@ -45,13 +45,13 @@ clean:
 	rm -f $(OBJECTS)
 	
 debug:
-	mpiexec -n 1 gdb --args ./$(BINDIR)/$(PROJECTNAME) : -n X-1 ./$(BINDIR)/$(PROJECTNAME)
+	mpiexec -n 7 gdb --args ./$(BINDIR)/$(PROJECTNAME) : -n X-1 ./$(BINDIR)/$(PROJECTNAME)
 
 memcheck:
-	valgrind -v --leak-check=yes --track-origins=yes $(BINDIR)/$(PROJECTNAME) $(ARGS)
+	valgrind -v --leak-check=yes --track-origins=yes $(BINDIR)/$(PROJECTNAME)
 
 run:
-	mpiexec -n 4 ./$(BINDIR)/$(PROJECTNAME)
+	mpiexec -n 7 ./$(BINDIR)/$(PROJECTNAME)
 
 show:
 	./$(BINDIR)/$(PROJECTNAME)
