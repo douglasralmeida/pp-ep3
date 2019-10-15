@@ -45,10 +45,10 @@ clean:
 	rm -f $(OBJECTS)
 	
 debug:
-	mpiexec -n 7 gdb --args ./$(BINDIR)/$(PROJECTNAME) : -n X-1 ./$(BINDIR)/$(PROJECTNAME)
+	mpirun -n 7 gdb -ex run --args ./$(BINDIR)/$(PROJECTNAME)
 
 memcheck:
-	valgrind -v --leak-check=yes --track-origins=yes $(BINDIR)/$(PROJECTNAME)
+	valgrind -v --leak-check=full --show-leak-kinds=all --track-origins=yes mpiexec -n 7 ./$(BINDIR)/$(PROJECTNAME)
 
 run:
 	mpiexec -n 7 ./$(BINDIR)/$(PROJECTNAME)
