@@ -2,7 +2,9 @@
 #include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/types.h>
 #include <time.h>
+#include <unistd.h>
 
 void receberNumeros(unsigned long n, unsigned long p, float* V) {
     unsigned long i;
@@ -21,66 +23,80 @@ void receberEntrada(char* tipoexec, unsigned long* n) {
         abort();
 }
 
-int main(int argc, char* argv[]) {
-    int j;
-    int id;
+void debuginfo(int p) {
+    pid_t pid;
+    
+    pid = getpid();
+    printf("Processo %d, id %d.\n", p, pid);
+    fflush(stdout);
+}
+
+int main() {
+    int i = 0, j;
     int meuid;
-    int num_por_proc;
-    int totalproc;
+    int num_por_proc = 0;
+    int totalproc = 0;
     char tipo[5];
     unsigned long tamanho;
-    float* vetor;    
+
+    float soma_parcial = 0.0;
+    float num_recebido = 0.0;
+    float* nums = NULL;
     
-    MPI_Init(&argc,&argv);
+    
+    MPI_Init(NULL, NULL);
     MPI_Comm_rank(MPI_COMM_WORLD, &meuid);
     MPI_Comm_size(MPI_COMM_WORLD, &totalproc);
     
-    //O processo 0 recebe a entrada e a
-    //redistribui para os processos disponíves
-    float soma_parcial = 0.0;
-    float num_recebido = 0.0;
-    float* nums;
+    //debuginfo(meuid);
+    
+    //O processo 0 recebe a entrada
+    float* vetor = NULL;
     if (meuid == 0) {
         receberEntrada(tipo, &tamanho);
         j = tamanho + (totalproc - tamanho % totalproc);
         num_por_proc = j / totalproc;
-        MPI_Alloc_mem(j * sizeof(float), MPI_INFO_NULL, &vetor);
+        vetor = (float*)malloc(j * sizeof(float));
         receberNumeros(tamanho, j, vetor);
-        for (j = 0; j < num_por_proc-1; j++) {
-            soma_parcial += vetor[j];
-        }
-        if (num_por_proc > 1) {
-            num_recebido = vetor[j];
-            j++;
-        }
-        nums = vetor;
-        for (id = 1; id < totalproc; id++) {
-            //Primeiro envia a quantidade de números
-            MPI_Send(&num_por_proc, sizeof(int), MPI_INT, id, 0, MPI_COMM_WORLD);
-
-            //Depois envia os números em si
-            MPI_Send(vetor + j, num_por_proc * sizeof(float), MPI_FLOAT, id, 0, MPI_COMM_WORLD);
-            j += num_por_proc;
+    }
+    
+    //O processo 0 distribui a quantidade
+    //de números da entrada para os demais
+    if (meuid == 0)
+        //Primeiro envia a quantidade de números
+        for (i = 1; i < totalproc; i++)
+            MPI_Send(&num_por_proc, sizeof(int), MPI_INT, i, 0, MPI_COMM_WORLD);
+    else
+        MPI_Recv(&num_por_proc, sizeof(int), MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    
+    //Cada processo aloca um vetor e recebe
+    //sua parcela de números
+    nums = (float*)malloc(num_por_proc * sizeof(float));
+    if (meuid == 0) {
+        for (i = 0; i < num_por_proc; i++)
+            nums[i] = vetor[i];
+        for (j = 1; j < totalproc; j++) {
+            MPI_Send(vetor + i, num_por_proc * sizeof(float), MPI_FLOAT, j, 0, MPI_COMM_WORLD);
+            i += num_por_proc;
         }
     } else {
-        int i;
-        //Cada processo recebe a quantidade 
-        MPI_Recv(&num_por_proc, sizeof(int), MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        MPI_Alloc_mem(num_por_proc * sizeof(float), MPI_INFO_NULL, &nums);
-        
-        //E depois os números da entrada
         MPI_Recv(nums, num_por_proc * sizeof(float), MPI_FLOAT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        soma_parcial = nums[0];
-        for (i = 0; i < num_por_proc - 1; i++)
-            soma_parcial += nums[i];
-        num_recebido = nums[i];
-    } 
+    }
     
+    //Limpa vetor de entrada
+    if (meuid == 0) {
+        free(vetor);
+        vetor = NULL;
+    }
+    
+    //Cada processo irá trocar um operando com seu vizinho para somar.
+    //pares vão para direita
+    //impares vão para esquerda
+    soma_parcial = nums[0];
     if (num_por_proc > 1) {
-        //Cada processo par troca um operando 
-        //com seu vizinho a direita
         int dest;
         int orig;
+        
         if (meuid % 2) {
             dest = meuid - 1;
             orig = meuid - 1;
@@ -101,15 +117,18 @@ int main(int argc, char* argv[]) {
                 orig = totalproc - 1;
             }
         }
-        MPI_Send(&num_recebido, sizeof(float), MPI_FLOAT, dest, 0, MPI_COMM_WORLD);
-        MPI_Recv(&num_recebido, sizeof(float), MPI_FLOAT, orig, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        for (i = 1; i < num_por_proc; i++) {
+            MPI_Send(nums + i, sizeof(float), MPI_FLOAT, dest, 0, MPI_COMM_WORLD);
+            MPI_Recv(&num_recebido, sizeof(float), MPI_FLOAT, orig, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            soma_parcial += num_recebido;
+        }
     }
     
-    //printf("processo n. %d recebeu %f e %f.\n", meuid, ops[0], ops[1]);
-    //fflush(stdout);
-    
-    //Realiza primeira operação de soma
-    soma_parcial += num_recebido;
+    MPI_Barrier(MPI_COMM_WORLD);
+
+    //Limpa memória
+    //free(nums);
+    nums = NULL;
     
     //Primeira etapa da redução
     //Reduz a arvore para ter o número de
@@ -119,10 +138,10 @@ int main(int argc, char* argv[]) {
         potenciadois = 2 << ((int)log2(totalproc)-1);
         if (meuid >= potenciadois) {
             MPI_Send(&soma_parcial, sizeof(float), MPI_FLOAT, meuid-potenciadois, 0, MPI_COMM_WORLD);
-            MPI_Free_mem(nums);
+            printf("finalizando... %d\n", meuid);
+            fflush(stdout);
             MPI_Barrier(MPI_COMM_WORLD);            
             MPI_Finalize();
-            //printf("AB %d\n", meuid);
             exit(EXIT_SUCCESS);
         }
         else if (meuid < totalproc-potenciadois) {
@@ -139,8 +158,9 @@ int main(int argc, char* argv[]) {
                 break;
             //Distribui os resultados para outros processos
             //0 a n/2-1 recebe, n/2 a n-1 envia
-            if (meuid < totalproc / 2)
+            if (meuid < totalproc / 2) {
                 MPI_Recv(&num_recebido, sizeof(float), MPI_FLOAT, meuid + totalproc/2, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            }
             else {
                 MPI_Send(&soma_parcial, sizeof(float), MPI_FLOAT, meuid - totalproc/2, 0, MPI_COMM_WORLD);
                 break;
@@ -151,13 +171,13 @@ int main(int argc, char* argv[]) {
     }
     
     //Mostra o resultado e limpa a memória
+    printf("finalizando... %d\n", meuid);    
+    fflush(stdout);
+    MPI_Barrier(MPI_COMM_WORLD);
     if (meuid == 0) {
         printf("%f\n", soma_parcial);
         fflush(stdout);
-        MPI_Free_mem(vetor);
     }
-    MPI_Barrier(MPI_COMM_WORLD);
     MPI_Finalize();
-    printf("A %d\n", meuid);
     exit(EXIT_SUCCESS);
 }
