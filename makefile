@@ -4,12 +4,11 @@
 #
 
 PROJECTNAME=ep3
-CC=gcc
+CC=mpicc
 
-LFLAGS=
-CFLAGS=-fopenmp -std=c99 -c -Wall -Wextra -Wpedantic -Iinclude/
-LIBS=-lm -lpthread -fopenmp
+CFLAGS=-c -std=c99 -Wall -Wextra -Wpedantic -Iinclude/
 DBGFLAGS=-ggdb -fno-inline -fno-omit-frame-pointer
+LIBS=-lm -lpthread
 BINDIR=bin
 OBJDIR=obj
 OBJFILES=main.o
@@ -19,12 +18,12 @@ SOURCEDIR=src
 $(OBJDIR)/%.o: $(SOURCEDIR)/%.c
 	@echo 
 	@echo Compilando $<...
-	mpicc $(DBGFLAGS) $(CFLAGS) $< -o $@
+	$(CC) $(DBGFLAGS) $(CFLAGS) $< -o $@
 
 $(PROJECTNAME): $(OBJECTS) 
 	@echo 
 	@echo Gerando executavel...
-	mpicc $(LFLAGS) -o $(BINDIR)/$@ $^ $(LIBS)
+	$(CC) $(LFLAGS) -o $(BINDIR)/$@ $^ $(LIBS)
 
 .PHONY: all build clean debug memcheck run
 
@@ -45,7 +44,7 @@ clean:
 	rm -f $(OBJECTS)
 	
 debug:
-	mpirun -n 7 gdb -ex run --args ./$(BINDIR)/$(PROJECTNAME)
+	mpiexec -n 7 gdb -ex run --args ./$(BINDIR)/$(PROJECTNAME)
 
 memcheck:
 	valgrind -v --leak-check=full --show-leak-kinds=all --track-origins=yes mpiexec -n 7 ./$(BINDIR)/$(PROJECTNAME)
